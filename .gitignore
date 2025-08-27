@@ -1,0 +1,38 @@
+pgdata/
+redisdata/
+
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE configs
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Docker
+*.pid
+*.sock
+
+# Environment variables (секреты!)
+.env
+*.env
+
+# Build / dist
+build/
+dist/
+*.egg-info/
