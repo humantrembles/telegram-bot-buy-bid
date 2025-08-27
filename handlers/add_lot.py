@@ -233,16 +233,7 @@ class AuctionHandler(BaseItemHandler):
                            f"<b>Результат:</b> {final_result}")
             full_final_caption = header + final_block
 
-            # --- ADD THIS LOGGING ---
-            print(f"DEBUG: Auction {auction_id} has {len(auction.posted_message)} posted messages.")
-            if not auction.posted_message:
-                print(f"DEBUG: The posted_messages list is EMPTY. The loop will be skipped.")
-            # ------------------------
-
             for posted_msg in auction.posted_message:
-                # --- AND ADD THIS LOGGING ---
-                print(f"DEBUG: Attempting to edit message {posted_msg.message_id} in chat {posted_msg.chat_id}")
-                # ----------------------------
                 try:
                     await self.bot.edit_message_caption(chat_id=posted_msg.chat_id,
                                            message_id=posted_msg.message_id,
