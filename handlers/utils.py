@@ -8,13 +8,19 @@ def extract_number(text):
         return None
 
 def create_listing_caption(data: dict, is_auction: bool = False, is_confirmation: bool = False) -> str:
-    caption = (f'📦 <b>Назва товару:</b> {data["name"]}\n'
-               f'📝 <b>Опис:</b> {data["description"]}\n'
-               f'💶 <b>Стартова ціна:</b> {data["price"]} €\n') 
     if is_auction:
-        caption += f'⏳ <b>Тривалість аукціону:</b> {data["duration"]} хв\n'
-    if is_confirmation:
-        caption += '\n⚠️ <b>Підтвердіть виставлення товару на аукціон:</b>'
+        caption = (f'📦 <b>Назва лота:</b> {data["name"]}\n'
+                   f'📝 <b>Опис:</b> {data["description"]}\n'
+                   f'💶 <b>Стартова ціна:</b> {data["price"]} €\n'
+                   f'⏳ <b>Тривалість аукціону:</b> {data["duration"]} хв\n') 
+        if is_confirmation:
+            caption += '\n⚠️ <b>Підтвердіть виставлення товару на аукціон:</b>'
+    else:
+        caption = (f'📦 <b>Назва товару:</b> {data["name"]}\n'
+                   f'📝 <b>Опис:</b> {data["description"]}\n'
+                   f'💶 <b>Стартова ціна:</b> {data["price"]} €\n')
+        if is_confirmation:
+            caption += '\n⚠️ <b>Підтвердіть виставлення товару на продаж:</b>'
     return caption
 
 def key_auc_price(auction_id: int) ->str:

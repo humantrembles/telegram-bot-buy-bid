@@ -12,6 +12,7 @@ from states.states import AdminStates
 from keyboards.inline import back_button_kb
 
 from database.models import User
+from create_bot import admins
 
 admin_router = Router()
 admin_router.message.filter(F.from_user.id.in_(admins))
@@ -63,6 +64,13 @@ async def get_user_id(message: Message, state: FSMContext, session: AsyncSession
 @admin_router.callback_query(F.data.startswith("warn_user:"))
 async def warn_user(callback: CallbackQuery, session: AsyncSession, bot: Bot):
     user_id_to_warn = int(callback.data.split(":")[1])
+
+    if user_id_to_warn in admins:
+        await callback.answer("Ви не можете видати попередження іншому адміністратору.")
+        await callback.message.edit_text(
+            f"<b>Дія скасована.</b>\n\nНе можна видати попередження іншому адміністратору (ID: `{user_id_to_warn}`).",
+            reply_markup=back_button_kb().as_markup())
+        return
 
     user_stmt = await session.execute(select(User).where(User.user_id == user_id_to_warn))
     user: Optional[User] = user_stmt.scalar_one_or_none()
