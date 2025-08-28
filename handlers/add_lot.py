@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from aiogram import F
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, CallbackQuery
-from aiogram.exceptions import TelegramBadRequest
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from apscheduler.triggers.date import DateTrigger
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -187,8 +187,7 @@ class AuctionHandler(BaseItemHandler):
                     winner_id = int(last_user_id_raw)
                     try:
                         winner_aiogram_user = await self.bot.get_chat(winner_id)
-                        winner_user = await orm_get_or_create_user(session, winner_aiogram_user)
-            
+                        winner_user = await orm_get_or_create_user(session, winner_aiogram_user)     
                         auction.buyer_id = winner_user.user_id
                         auction.last_price = final_price
                     except Exception as e:
@@ -214,19 +213,27 @@ class AuctionHandler(BaseItemHandler):
                                   f"👤 Переможець: {winner_display}\n"
                                   f"💰 Фінальна ціна: <b>{final_price:.2f} €</b>\n\n"
                                   f"Переможець отримав сповіщення та ваші контакти для зв'язку.")
-                await self.bot.send_message(seller.user_id, seller_message)
-
                 # 2. Надсилаємо сповіщення переможцю з контактами продавця
                 winner_message = (f"🎉 Вітаємо! Ви перемогли в аукціоні й виграли лот з назвою «<b>{auction.lot_name}</b>»!\n\n"
                                   f"💰 Виграшна ставка: <b>{final_price:.2f} €</b>\n"
                                   f"👤 Для завершення угоди зв'яжіться з продавцем: {seller_display}\n\n"
                                   f"Дякуємо, що користуєтесь нашим ботом!")
-            
-                await self.bot.send_message(winner_user.user_id, winner_message)
+                try:
+                    await self.bot.send_message(winner_user.user_id, winner_message)
+                except TelegramForbiddenError:
+                    print(f"Не вдалося надіслати повідомлення переможцю {winner_user.user_id}. Користувач заблокував бота.")
+                    seller_message += "\n\n❗️<b>Важливо:</b> не вдалося надіслати сповіщення переможцю. Схоже, він не починав діалогу з ботом або заблокував."
+                try:
+                    await self.bot.send_message(seller.user_id, seller_message)
+                except TelegramForbiddenError:
+                    print(f"Не вдалося надіслати повідомлення продавцю {seller.user_id}. Користувач заблокував бота.")
             else:
                 final_result = "На жаль, не було зроблено жодної ставки."
                 seller_message_no_bids = (f"😔 На жаль, ваш аукціон на лот «<b>{auction.lot_name}</b>» завершився без жодної ставки.")
-                await self.bot.send_message(seller.user_id, seller_message_no_bids)
+                try:
+                    await self.bot.send_message(seller.user_id, seller_message_no_bids)
+                except TelegramForbiddenError:
+                    print(f"Не вдалося надіслати повідомлення продавцю {seller.user_id} про відсутність ставок. Користувач заблокував бота.")
 
             final_block = (f"\n\n🏁<b>ПІДСУМКИ!</b>\n"
                            f"<b>Статус:</b> {final_status}\n"
@@ -259,13 +266,23 @@ class AuctionHandler(BaseItemHandler):
                               key_auc_status_msg(auction_id),
                               key_auc_end_time(auction_id),
                               key_auc_info_msg(auction_id)]
-            await self.redis.delete(*keys_to_delete)
+            if await self.redis.exists(*keys_to_delete):
+                await self.redis.delete(*keys_to_delete)
             print(f"Дані для аукціону {auction_id} очищено.")
 
 
     async def increase_bid(self, callback: CallbackQuery):
         auction_id = int(callback.data.split(":")[1])  
         user_info = callback.from_user
+
+        price_raw = await self.redis.get(key_auc_price(auction_id))
+        if price_raw is None:
+            await callback.answer("❗️ Аукціон вже завершено.", show_alert=True)
+            try:
+                await callback.message.edit_reply_markup(reply_markup=None)
+            except TelegramBadRequest:
+                pass
+            return
 
         async with self.session_maker() as session:
             auction = await session.get(Listing, auction_id)
@@ -281,8 +298,8 @@ class AuctionHandler(BaseItemHandler):
         if last_user_id_raw and int(last_user_id_raw.decode()) == user_info.id:
             await callback.answer('Ви вже зробили ставку.')
             return
-    
-        current_price = float(await self.redis.get(key_auc_price(auction_id)))
+
+        current_price = float(price_raw)
         bid_increment = 0.05 if current_price < 1  else (0.1 if current_price < 10 else 0.25)
     
         new_price_raw = await self.redis.incrbyfloat(key_auc_price(auction_id), bid_increment)
